@@ -124,7 +124,8 @@ button.primary { background: var(--process); color: #fff; border-color: var(--pr
 .parts-row button { text-align: center; }
 
 .explain { margin-top: 20px; }
-.explain .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.explain .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.interp { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--rule); }
 @media (max-width: 900px) { .explain .cols { grid-template-columns: 1fr; } }
 .explain h3 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
 .explain p { margin: 0 0 8px; color: var(--ink); }
@@ -223,7 +224,7 @@ footer a { color: var(--band); }
   </div>
 
   <section class="panel explain">
-    <h2>How the numbers are calculated</h2>
+    <h2>How Cp and Cpk are calculated</h2>
     <div class="cols">
       <div>
         <h3>Cp: can the spread fit?</h3>
@@ -235,7 +236,8 @@ footer a { color: var(--band); }
         <div class="f" aria-label="Cpk equals the minimum of USL minus mu over 3 sigma, and mu minus LSL over 3 sigma">Cpk = min <span class="paren">(</span> <span class="frac"><span>USL − μ</span><span>3σ</span></span> , <span class="frac"><span>μ − LSL</span><span>3σ</span></span> <span class="paren">)</span></div>
         <p>Measures the distance from the mean to the nearer spec limit, in units of 3σ. Cpk = 1 means the nearest limit is exactly 3σ away. Cpk is never larger than Cp; the gap between them shows how far off-center the process is.</p>
       </div>
-      <div>
+    </div>
+    <div class="interp">
         <h3>Common interpretation</h3>
         <p class="note" style="color:var(--ink)">These cutoffs are conventions, not laws of nature. Textbooks, industries, and individual customers set them differently, and every one of them assumes a normal, stable process.</p>
         <table class="scale-table">
