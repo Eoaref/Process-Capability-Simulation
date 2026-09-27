@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Process capability simulation: Cp, Cpk and spec limits</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #E9EEF1;
+  --panel: #FFFFFF;
+  --ink: #17263A;
+  --muted: #5A6A7B;
+  --rule: #C9D3DB;
+  --spec: #1E5E3A;
+  --spec-soft: rgba(30, 94, 58, 0.16);
+  --out: #C2362F;
+  --out-fill: rgba(194, 54, 47, 0.2);
+  --in: #2E9E5B;
+  --in-fill: rgba(46, 158, 91, 0.3);
+  --process: #2A4A6B;
+  --process-fill: rgba(42, 74, 107, 0.22);
+  --band: #1F6FD1;
+  --ok: #2E7D4F;
+  --warn: #C98512;
+  --good: #2E7D4F;
+  --great: #1F6F8B;
+  --bad: #C2362F;
+  --focus: #1F6FD1;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111922; --panel: #19242F; --ink: #E4EBF1; --muted: #93A4B5; --rule: #2E3D4C;
+    --spec: #4FBF7F; --spec-soft: rgba(79, 191, 127, 0.18);
+    --out: #F0645A; --out-fill: rgba(240, 100, 90, 0.22);
+    --in: #7FD6A3; --in-fill: rgba(127, 214, 163, 0.28);
+    --process: #9FB8D6; --process-fill: rgba(159, 184, 214, 0.25);
+    --band: #5B9BF0; --ok: #5CC08A; --warn: #F2B04A; --good: #5CC08A; --great: #5BB3D0; --bad: #F0645A; --focus: #5B9BF0;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111922; --panel: #19242F; --ink: #E4EBF1; --muted: #93A4B5; --rule: #2E3D4C;
+  --spec: #4FBF7F; --spec-soft: rgba(79, 191, 127, 0.18);
+  --out: #F0645A; --out-fill: rgba(240, 100, 90, 0.22);
+  --in: #7FD6A3; --in-fill: rgba(127, 214, 163, 0.28);
+  --process: #9FB8D6; --process-fill: rgba(159, 184, 214, 0.25);
+  --band: #5B9BF0; --ok: #5CC08A; --warn: #F2B04A; --good: #5CC08A; --great: #5BB3D0; --bad: #F0645A; --focus: #5B9BF0;
+}
+html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font-family: "Public Sans", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-size: 14px; line-height: 1.55;
+}
+.wrap { max-width: 1180px; margin: 0 auto; padding: 28px 20px 48px; }
+header h1 {
+  font-family: "Newsreader", Georgia, "Times New Roman", serif;
+  font-weight: 600; font-size: 20px; line-height: 1.3; margin: 0 0 8px;
+}
+header p { margin: 0; color: var(--muted); max-width: 80ch; font-size: 14px; }
+.grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 20px; margin-top: 22px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.panel { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 18px; }
+.chart-panel { padding: 14px 14px 10px; }
+svg { display: block; width: 100%; height: auto; }
+.scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* keep chart text at 12px or larger on small screens: scroll sideways instead of shrinking */
+svg.wide { min-width: 780px; }
+svg.wide-g { min-width: 720px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--muted); padding: 6px 6px 0; }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 14px; height: 10px; border-radius: 2px; display: inline-block; }
+
+.readouts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 16px; }
+@media (max-width: 620px) { .readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 12px 14px; }
+.stat .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.1; }
+.stat .l { font-size: 14px; color: var(--muted); margin-top: 4px; }
+.stat .s { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.verdict-panel { margin-top: 16px; }
+.verdict { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.verdict .tag { font-weight: 700; font-size: 18px; }
+.story { margin: 10px 0 0; max-width: 75ch; }
+.story p { margin: 0 0 8px; }
+
+.controls h2, .explain h2, .explain > h2 {
+  font-family: "Newsreader", Georgia, serif; font-weight: 600; font-size: 20px; margin: 0 0 12px;
+}
+.field { margin-bottom: 16px; }
+.field label { display: flex; justify-content: space-between; align-items: baseline; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+.field label small { font-weight: 400; color: var(--muted); font-size: 12px; }
+.row { display: flex; gap: 10px; align-items: center; }
+input[type=range] { flex: 1; accent-color: var(--process); min-width: 0; }
+input[type=number] {
+  width: 96px; padding: 6px 8px; font: inherit; font-size: 14px; font-variant-numeric: tabular-nums;
+  border: 1px solid var(--rule); border-radius: 6px; background: var(--bg); color: var(--ink);
+}
+.specs { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+.specs input { width: 100%; }
+.specs label { font-weight: 600; font-size: 14px; display: block; margin-bottom: 6px; }
+.lsl-l, .usl-l { color: var(--spec); }
+input:focus-visible, button:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+.err { color: var(--out); font-size: 14px; min-height: 1.2em; margin: -6px 0 10px; }
+
+.presets { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.presets h3 { font-size: 18px; margin: 6px 0 2px; font-weight: 600; }
+button {
+  font: inherit; font-size: 14px; text-align: left; cursor: pointer;
+  padding: 8px 12px; border-radius: 8px; border: 1px solid var(--rule);
+  background: var(--bg); color: var(--ink);
+}
+button:hover { border-color: var(--process); }
+button.primary { background: var(--process); color: #fff; border-color: var(--process); text-align: center; }
+:root[data-theme="dark"] button.primary { color: #0E1620; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) button.primary { color: #0E1620; } }
+.parts-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-top: 8px; font-size: 14px; color: var(--muted); }
+.parts-row button { text-align: center; }
+
+.explain { margin-top: 20px; }
+.explain .cols { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 900px) { .explain .cols { grid-template-columns: 1fr; } }
+.explain h3 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
+.explain p { margin: 0 0 8px; color: var(--ink); }
+.frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; margin: 0 3px; line-height: 1.3; }
+.frac > span:first-child { border-bottom: 1.5px solid currentColor; padding: 0 4px 2px; }
+.frac > span:last-child { padding: 2px 4px 0; }
+.paren { font-size: 32px; line-height: 1; vertical-align: middle; font-weight: 300; }
+.f { font-family: "Newsreader", Georgia, serif; font-size: 14px; background: var(--bg); border-radius: 6px; padding: 8px 10px; margin: 6px 0 10px; overflow-x: auto; white-space: nowrap; }
+.scale-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.scale-table td { padding: 5px 4px; border-bottom: 1px solid var(--rule); font-variant-numeric: tabular-nums; }
+.dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: middle; }
+p.note { font-size: 14px; color: var(--muted); margin: 0 0 10px; }
+.scale-table td { vertical-align: top; }
+.scale-table td:first-child { white-space: nowrap; padding-right: 10px; }
+.data-table { width: 100%; min-width: 720px; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; margin-top: 6px; }
+.data-table th { text-align: left; font-weight: 600; padding: 8px 8px; border-bottom: 2px solid var(--rule); vertical-align: bottom; }
+.data-table td { padding: 7px 8px; border-bottom: 1px solid var(--rule); }
+details { border: 1px solid var(--rule); border-radius: 8px; margin: 10px 0; background: var(--bg); }
+details summary { cursor: pointer; padding: 12px 14px; font-weight: 600; font-size: 14px; }
+details[open] summary { border-bottom: 1px solid var(--rule); }
+details > div { padding: 10px 14px 4px; }
+details p { margin: 0 0 10px; }
+.refs { padding-left: 20px; margin: 6px 0 0; font-size: 14px; }
+.refs li { margin-bottom: 6px; }
+footer { margin-top: 20px; padding: 18px; font-size: 14px; color: var(--muted); border-top: 1px solid var(--rule); line-height: 1.6; max-width: 90ch; }
+footer a { color: var(--band); }
+@media (prefers-reduced-motion: no-preference) { .marker { transition: transform 0.15s ease-out; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Process capability simulation</h1>
+    <p>Move the process mean and spread, or change the spec limits, and watch how Cp, Cpk and the share of good parts respond. The shaded curve is the process; the dark green lines are the spec limits the customer allows.</p>
+  </header>
+
+  <div class="grid">
+    <div>
+      <div class="panel chart-panel">
+        <div class="scroll"><svg id="chart" class="wide" viewBox="0 0 900 480" role="img" aria-label="Normal distribution of the process with specification limits"></svg></div>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--in-fill);border:1px solid var(--in)"></i>Parts inside specs</span>
+          <span><i class="sw" style="background:var(--out-fill);border:1px solid var(--out)"></i>Parts outside specs</span>
+          <span><i class="sw" style="background:var(--band)"></i>Process spread, mean ± 3σ</span>
+          <span><i class="sw" style="background:var(--spec)"></i>Spec limits LSL / USL</span>
+        </div>
+      </div>
+
+      <div class="readouts">
+        <div class="stat"><div class="v" id="cpkV">–</div><div class="l">Cpk (nearest side)</div><div class="s" id="cpkS"></div></div>
+        <div class="stat"><div class="v" id="cpV">–</div><div class="l">Cp (spread only)</div><div class="s" id="cpS"></div></div>
+        <div class="stat"><div class="v" id="inV">–</div><div class="l">Expected in spec</div><div class="s" id="inS"></div></div>
+        <div class="stat"><div class="v" id="ppmV">–</div><div class="l">Defects per million</div><div class="s" id="ppmS"></div></div>
+      </div>
+
+      <div class="panel verdict-panel">
+        <div class="verdict"><span class="tag" id="verdictTag">–</span><span id="verdictSub" style="color:var(--muted)"></span></div>
+        <div class="scroll" style="margin-top:10px"><svg id="gauge" class="wide-g" viewBox="0 0 820 76" role="img" aria-label="Cpk scale"></svg></div>
+        <div class="story" id="story"></div>
+      </div>
+    </div>
+
+    <aside class="panel controls">
+      <h2>Adjust the process</h2>
+      <div class="specs">
+        <div><label for="lsl" class="lsl-l">LSL (lower spec)</label><input type="number" id="lsl" value="94" step="any"></div>
+        <div><label for="usl" class="usl-l">USL (upper spec)</label><input type="number" id="usl" value="106" step="any"></div>
+      </div>
+      <div class="err" id="err" role="alert"></div>
+
+      <div class="field">
+        <label for="muR">Process mean (μ) <small>where it's centered</small></label>
+        <div class="row"><input type="range" id="muR"><input type="number" id="muN" step="any" aria-label="Process mean value"></div>
+      </div>
+      <div class="field">
+        <label for="sdR">Std deviation (σ) <small>how much it varies</small></label>
+        <div class="row"><input type="range" id="sdR"><input type="number" id="sdN" step="any" min="0" aria-label="Standard deviation value"></div>
+      </div>
+
+      <div class="presets">
+        <h3>Try a scenario</h3>
+        <button data-p="c1">Centered, just fits: Cp = Cpk = 1.00</button>
+        <button data-p="shift">Narrow but shifted: Cp 1.50, Cpk 1.00</button>
+        <button data-p="cp2">Very precise but off-center: Cp 2.00, Cpk 1.00</button>
+        <button data-p="marg">Marginal: Cpk 1.09</button>
+        <button data-p="cap">Capable: Cpk 1.33</button>
+        <button data-p="high">Highly capable: Cpk 1.67</button>
+        <button data-p="wide">Too much variation: Cp 0.80</button>
+        <button data-p="off">Mean outside the specs: Cpk below 0</button>
+      </div>
+
+      <div class="parts-row">
+        <button class="primary" id="resample">Make a new batch of 500 parts</button>
+      </div>
+    </aside>
+  </div>
+
+  <section class="panel explain">
+    <h2>How the numbers are calculated</h2>
+    <div class="cols">
+      <div>
+        <h3>Cp: can the spread fit?</h3>
+        <div class="f" aria-label="Cp equals USL minus LSL, divided by 6 sigma">Cp = <span class="frac"><span>USL − LSL</span><span>6σ</span></span></div>
+        <p>Compares the allowed width to the process width (±3σ = 6σ). It ignores where the process is centered, so it tells you the best Cpk you could get if the mean sat exactly in the middle.</p>
+      </div>
+      <div>
+        <h3>Cpk: does it fit where it actually sits?</h3>
+        <div class="f" aria-label="Cpk equals the minimum of USL minus mu over 3 sigma, and mu minus LSL over 3 sigma">Cpk = min <span class="paren">(</span> <span class="frac"><span>USL − μ</span><span>3σ</span></span> , <span class="frac"><span>μ − LSL</span><span>3σ</span></span> <span class="paren">)</span></div>
+        <p>Measures the distance from the mean to the nearer spec limit, in units of 3σ. Cpk = 1 means the nearest limit is exactly 3σ away. Cpk is never larger than Cp; the gap between them shows how far off-center the process is.</p>
+      </div>
+      <div>
+        <h3>Common interpretation</h3>
+        <p class="note" style="color:var(--ink)">These cutoffs are conventions, not laws of nature. Textbooks, industries, and individual customers set them differently, and every one of them assumes a normal, stable process.</p>
+        <table class="scale-table">
+          <tr><td><i class="dot" style="background:var(--bad)"></i>Below 1.00</td><td>Not capable. Some parts are already out of spec.</td></tr>
+          <tr><td><i class="dot" style="background:var(--warn)"></i>1.00 to 1.33</td><td>Marginal. It fits, with little room for drift.</td></tr>
+          <tr><td><i class="dot" style="background:var(--good)"></i>1.33 to 1.67</td><td>Capable. 1.33 is a common minimum for existing processes [1]. In the automotive industry, values in this range are often accepted only after the customer reviews them.</td></tr>
+          <tr><td><i class="dot" style="background:var(--great)"></i>1.67 and up</td><td>Highly capable. A typical target for safety-critical characteristics on new processes [1], and a common acceptance level for new parts in the automotive industry. 2.00 corresponds to Six Sigma quality [1].</td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel explain">
+    <h2>What a Cpk number actually tells you</h2>
+    <p>Cpk is a distance: how many standard deviations of room the process has before it reaches the nearer spec limit (3 × Cpk). That distance converts directly into how often a bad part is made. Whether that rate is acceptable depends on what one bad part costs, and that is a business decision, not a statistics rule.</p>
+    <div class="scroll">
+      <table class="data-table" id="meaningTable">
+        <thead><tr>
+          <th>Cpk</th><th>Room to nearer spec</th><th>Out of spec on that side (per million)</th><th>About 1 bad part in</th>
+          <th>Bad per 50,000 surgical kits</th><th>Bad per 10 million nails</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <p class="note" style="margin-top:8px">0.67, 1.33 and 1.67 are the rounded values of 2/3, 4/3 and 5/3, which is why they correspond to exactly 2σ, 4σ and 5σ. Counts are for the nearer side only. If the process is centered, both sides contribute equally, so double them. Values assume a normal, stable process.</p>
+
+    <h2 style="margin-top:22px">Discussion: what Cpk would you require?</h2>
+    <p>For each case, decide what Cpk you would put in the purchase contract, then open the discussion points. Try the numbers in the simulator above.</p>
+
+    <details>
+      <summary>You are outsourcing 16d common nails, the standard 3½-inch framing nail used in U.S. house construction, bought by the millions. What Cpk would you mandate?</summary>
+      <div>
+        <p>A single bad nail costs almost nothing. It is easy to see, the user simply picks another one, and nobody gets hurt. At Cpk = 1.00 roughly 1 nail in 740 is out of spec on the near side; at 1.33 it is about 1 in 32,000. Many buyers would accept something around 1.0 to 1.33 here.</p>
+        <p>Demanding 1.67 or 2.00 would force the supplier onto tighter equipment and more inspection, and the price per nail would go up for almost no benefit to the customer. The better question is which characteristic matters: a shank that is too thick splits the lumber, and a nail that is too short does not hold the framing together.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>A component goes into a surgical kit, for example the diameter of a suture needle or the locking mechanism of a clamp. What Cpk would you require?</summary>
+      <div>
+        <p>Here a single defect can harm a patient, and it may not be noticed until the moment of use. If you make 50,000 kits a year, Cpk = 1.33 means about 1 to 2 bad kits every year; Cpk = 1.67 means roughly one every 70 years.</p>
+        <p>Most companies would require at least 1.67 for a characteristic like this, often 2.00, and would still add inspection or testing. The required number follows from the consequence of failure, not from a textbook table.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>You buy a safety part for a car's brakes or airbag. What does the automotive industry typically expect?</summary>
+      <div>
+        <p>In the automotive industry, suppliers of new parts are commonly expected to show a capability index of at least 1.67 for important characteristics. Values between 1.33 and 1.67 may be accepted after the customer reviews the study, and values below 1.33 usually require a corrective action plan. Each carmaker writes its own exact requirements into its supplier agreements.</p>
+        <p>This is a good example of a cutoff written into a contract: the number is agreed between buyer and supplier before production starts.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>A meat packer fills packages labeled 1 lb. Is a high Cpk always better here?</summary>
+      <div>
+        <p>Underweight packages break labeling law and upset customers, so the lower side matters a lot. Overweight packages are legal but give product away. The company could raise Cpk on the lower side by simply filling everything heavier, but every extra ounce is lost money.</p>
+        <p>The smarter fix is reducing variation (raising Cp), which lets the company move the mean closer to 1 lb without producing underweight packages. The "right" Cpk is a balance between legal risk and the cost of giveaway.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>A supplier reports Cp = 2.00 but Cpk = 1.00. Do you reject the parts?</summary>
+      <div>
+        <p>Not necessarily. Cp = 2.00 says the process is very precise: its ±3σ spread uses only half the tolerance. Cpk = 1.00 says the mean has drifted so far toward one limit that it has only 3σ of room on that side. Load the "Very precise but off-center" scenario to see it.</p>
+        <p>This is usually an easy fix, like a tool offset or machine setting. Re-centering the process would raise Cpk to 2.00 with no new equipment. A reasonable response is to ask for corrective action to re-center, rather than treating the supplier as incapable.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Why not simply require Cpk = 2.00 on every part?</summary>
+      <div>
+        <p>Capability costs money. A higher Cpk means more precise machines, more maintenance, tighter material control, and more measurement. For low-risk characteristics, that cost is passed on in the price without giving the customer anything they value.</p>
+        <p>Companies usually set higher requirements only for characteristics flagged as critical or safety-related, and accept lower values for cosmetic or non-functional features.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>A supplier reports Cpk = 1.35 from 25 parts. Has the process really met a 1.33 requirement?</summary>
+      <div>
+        <p>Not with confidence. Cpk is an estimate from a sample, and with only 25 parts the true value could easily be below 1.33. It also only means something if the process was stable (in control) when the data were collected.</p>
+        <p>Before trusting the number, check the control chart, look at how many parts were measured, and ask whether the data cover different shifts, operators, and material lots.</p>
+      </div>
+    </details>
+
+    <h3 style="margin-top:22px">References</h3>
+    <ol class="refs">
+      <li>Montgomery, D. C. (2012). <em>Introduction to statistical quality control</em> (7th ed.). Wiley. Table of recommended minimum values of the process capability ratio: 1.33 existing processes, 1.50 new processes and safety or critical parameters on existing processes, 1.67 safety or critical parameters on new processes, 2.00 Six Sigma (two-sided specifications).</li>
+    </ol>
+  </section>
+
+  <footer>
+    This tool was created by <a href="mailto:earef@bgsu.edu">Enas Aref</a> as an aid to help
+    students understand process capability. Students can adjust the specification limits (LSL and USL),
+    the process mean, and the process standard deviation, and immediately see how the process's ±3σ spread
+    compares with the spec limits, how Cp and Cpk change, and what percentage of parts is expected to fall
+    within specification. A batch of 500 simulated parts shows the same result as individual good and
+    defective parts, and preset scenarios illustrate centered, shifted, marginal, capable, and incapable
+    processes. Percentages assume a normally distributed, stable process. This interactive example
+    was planned and structured by the instructor; the code was created by Claude (Anthropic) and deployed by
+    the instructor. It is for educational purposes only.<br><br>
+    Comments, questions, or spotted errors: <a href="mailto:earef@bgsu.edu">earef@bgsu.edu</a><br><br>
+    Licensed under <a href="https://creativecommons.org/licenses/by-nc-nd/4.0/" target="_blank" rel="noopener">CC BY-NC-ND 4.0</a>
+    — share the original only, no modifications, no commercial use.<br><br>
+    If you'd like to reference this tool: Aref, E. (2026). <em>Process capability simulation</em>.
+  </footer>
+</div>
+
+<script>
+(function () {
+  const $ = (id) => document.getElementById(id);
+  const NS = "http://www.w3.org/2000/svg";
+  const state = { lsl: 94, usl: 106, mu: 100, sd: 2 };
+  let zs = [];
+
+  // Standard normal upper tail, via erfc (Numerical Recipes erfcc, rel. error < 1.2e-7)
+  function erfc(x) {
+    const z = Math.abs(x), t = 1 / (1 + 0.5 * z);
+    const r = t * Math.exp(-z * z - 1.26551223 + t * (1.00002368 + t * (0.37409196 + t * (0.09678418 +
+      t * (-0.18628806 + t * (0.27886807 + t * (-1.13520398 + t * (1.48851587 + t * (-0.82215223 + t * 0.17087277)))))))));
+    return x >= 0 ? r : 2 - r;
+  }
+  const upperTail = (z) => 0.5 * erfc(z / Math.SQRT2);
+
+  function randn() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
+  }
+  function resample() { zs = Array.from({ length: 500 }, randn); render(); }
+
+  function fmt(n, d) { return Number.isFinite(n) ? n.toFixed(d) : "–"; }
+  function smart(n) { return String(Number(n.toFixed(3))); }
+  function el(tag, attrs, parent) {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function txt(parent, x, y, s, attrs) {
+    const t = el("text", Object.assign({ x, y, "font-family": "Public Sans, system-ui, sans-serif", "font-size": 14, fill: "var(--ink)" }, attrs || {}), parent);
+    t.textContent = s;
+    return t;
+  }
+  function niceTicks(lo, hi, count) {
+    const span = hi - lo, raw = span / count, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    const norm = raw / mag, step = (norm < 1.5 ? 1 : norm < 3 ? 2 : norm < 7 ? 5 : 10) * mag;
+    const out = [];
+    for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(+v.toFixed(10));
+    return out;
+  }
+
+  function band(cpk) {
+    if (cpk < 1) return { name: "Not capable", color: "var(--bad)" };
+    if (cpk < 1.33) return { name: "Marginal, barely capable", color: "var(--warn)" };
+    if (cpk < 1.67) return { name: "Capable", color: "var(--good)" };
+    return { name: "Highly capable", color: "var(--great)" };
+  }
+
+  function syncRanges() {
+    const w = state.usl - state.lsl;
+    const muR = $("muR"), sdR = $("sdR");
+    muR.min = state.lsl - 0.5 * w; muR.max = state.usl + 0.5 * w; muR.step = w / 600;
+    sdR.min = w / 100; sdR.max = w / 2; sdR.step = w / 1200;
+    muR.value = state.mu; sdR.value = state.sd;
+    $("muN").value = +state.mu.toFixed(4); $("sdN").value = +state.sd.toFixed(4);
+    $("muN").step = +(w / 100).toPrecision(2); $("sdN").step = +(w / 200).toPrecision(2);
+  }
+
+  function drawChart(s) {
+    const svg = $("chart");
+    svg.innerHTML = "";
+    const W = 900, L = 40, R = 860, top = 30, base = 285;
+    const { lsl, usl, mu, sd } = state, w = usl - lsl;
+    const lo = Math.min(lsl - 0.3 * w, mu - 4.2 * sd), hi = Math.max(usl + 0.3 * w, mu + 4.2 * sd);
+    const X = (v) => L + (v - lo) / (hi - lo) * (R - L);
+    const H = base - top - 20;
+    const Y = (v) => base - H * Math.exp(-0.5 * ((v - mu) / sd) ** 2);
+
+    const defs = el("defs", {}, svg);
+    const cIn = el("clipPath", { id: "cin" }, defs);
+    el("rect", { x: X(lsl), y: 0, width: Math.max(0, X(usl) - X(lsl)), height: 430 }, cIn);
+    const cOut = el("clipPath", { id: "cout" }, defs);
+    el("rect", { x: 0, y: 0, width: X(lsl), height: 430 }, cOut);
+    el("rect", { x: X(usl), y: 0, width: W - X(usl), height: 430 }, cOut);
+
+    // spec zone background
+    el("rect", { x: X(lsl), y: top - 10, width: X(usl) - X(lsl), height: base - top + 10, fill: "var(--bg)", opacity: 0.6 }, svg);
+
+    // curve
+    let d = `M ${X(lo)} ${base}`;
+    const N = 360;
+    for (let i = 0; i <= N; i++) { const v = lo + (hi - lo) * i / N; d += ` L ${X(v).toFixed(2)} ${Y(v).toFixed(2)}`; }
+    d += ` L ${X(hi)} ${base} Z`;
+    el("path", { d, fill: "var(--in-fill)", "clip-path": "url(#cin)" }, svg);
+    el("path", { d, fill: "var(--out-fill)", "clip-path": "url(#cout)" }, svg);
+    let line = "";
+    for (let i = 0; i <= N; i++) { const v = lo + (hi - lo) * i / N; line += (i ? " L " : "M ") + X(v).toFixed(2) + " " + Y(v).toFixed(2); }
+    el("path", { d: line, fill: "none", stroke: "var(--process)", "stroke-width": 2.5 }, svg);
+
+    // ±3σ guide lines
+    [-3, 3].forEach((k) => {
+      const x = X(mu + k * sd);
+      el("line", { x1: x, x2: x, y1: top + 20, y2: base, stroke: "var(--band)", "stroke-width": 1.5, "stroke-dasharray": "5 4" }, svg);
+    });
+
+    // mean line
+    el("line", { x1: X(mu), x2: X(mu), y1: top + 14, y2: base, stroke: "var(--process)", "stroke-width": 1.5 }, svg);
+    txt(svg, X(mu), top + 8, "μ = " + smart(mu), { "text-anchor": "middle", "font-weight": 600, fill: "var(--process)" });
+
+    // spec lines
+    [[lsl, "LSL"], [usl, "USL"]].forEach(([v, n]) => {
+      el("line", { x1: X(v), x2: X(v), y1: top - 10, y2: base + 4, stroke: "var(--spec)", "stroke-width": 3 }, svg);
+      txt(svg, X(v), top - 14, n + " " + smart(v), { "text-anchor": "middle", "font-weight": 700, fill: "var(--spec)" });
+    });
+
+    // nearest-side distance arrow
+    const nearU = (usl - mu) <= (mu - lsl);
+    const nearV = nearU ? usl : lsl, dist = nearU ? usl - mu : mu - lsl;
+    const ay = base - H * 0.42;
+    el("line", { x1: X(mu), x2: X(nearV), y1: ay, y2: ay, stroke: "var(--ink)", "stroke-width": 1.2, "marker-end": "url(#ah)" }, svg);
+    const mk = el("marker", { id: "ah", viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 7, markerHeight: 7, orient: "auto-start-reverse" }, defs);
+    el("path", { d: "M0 0 L10 5 L0 10 z", fill: "var(--ink)" }, mk);
+    const zNear = dist / sd;
+    const label = (zNear >= 0 ? fmt(zNear, 2) + "σ to " : "mean is past ") + (nearU ? "USL" : "LSL");
+    const lx = (X(mu) + X(nearV)) / 2;
+    const lab = txt(svg, lx, ay - 7, label, { "text-anchor": "middle", "font-size": 14, "font-weight": 600 });
+    lab.setAttribute("paint-order", "stroke"); lab.setAttribute("stroke", "var(--panel)"); lab.setAttribute("stroke-width", 4);
+
+    // axis
+    el("line", { x1: L, x2: R, y1: base, y2: base, stroke: "var(--muted)", "stroke-width": 1 }, svg);
+    niceTicks(lo, hi, 9).forEach((t) => {
+      el("line", { x1: X(t), x2: X(t), y1: base, y2: base + 5, stroke: "var(--muted)" }, svg);
+      txt(svg, X(t), base + 19, String(+t.toFixed(6)), { "text-anchor": "middle", "font-size": 14, fill: "var(--muted)" });
+    });
+
+    // comparison bars (label on its own line above each bar)
+    txt(svg, L, 330, "Allowed by specs (LSL to USL)", { "font-size": 14, fill: "var(--muted)" });
+    el("rect", { x: X(lsl), y: 337, width: X(usl) - X(lsl), height: 12, rx: 3, fill: "var(--spec)" }, svg);
+    txt(svg, L, 372, "Process spread (mean ± 3σ)", { "font-size": 14, fill: "var(--muted)" });
+    el("rect", { x: X(mu - 3 * sd), y: 379, width: X(mu + 3 * sd) - X(mu - 3 * sd), height: 12, rx: 3, fill: "var(--band)" }, svg);
+    txt(svg, X(mu - 3 * sd) - 6, 390, smart(mu - 3 * sd), { "text-anchor": "end", "font-size": 14, fill: "var(--band)", "font-weight": 600 });
+    txt(svg, X(mu + 3 * sd) + 6, 390, smart(mu + 3 * sd), { "text-anchor": "start", "font-size": 14, fill: "var(--band)", "font-weight": 600 });
+
+    // simulated parts strip
+    const sy = 430;
+    txt(svg, L, sy - 12, "500 simulated parts (each dot is one part)", { "font-size": 14, fill: "var(--muted)" });
+    let bad = 0;
+    zs.forEach((z, i) => {
+      const v = mu + sd * z;
+      if (v < lo || v > hi) { bad++; return; }
+      const out = v < lsl || v > usl;
+      if (out) bad++;
+      const jitter = ((i * 37) % 29) - 14;
+      el("circle", { cx: X(v), cy: sy + 16 + jitter * 0.9, r: out ? 3.2 : 2.4, fill: out ? "var(--out)" : "var(--in)", opacity: out ? 0.95 : 0.7 }, svg);
+    });
+  }
+
+  function drawGauge(s) {
+    const g = $("gauge");
+    g.innerHTML = "";
+    const L = 10, R = 810, max = 2.5;
+    const X = (v) => L + Math.max(0, Math.min(max, v)) / max * (R - L);
+    const bands = [[0, 1, "var(--bad)"], [1, 1.33, "var(--warn)"], [1.33, 1.67, "var(--good)"], [1.67, max, "var(--great)"]];
+    bands.forEach(([a, b, c]) => el("rect", { x: X(a), y: 22, width: X(b) - X(a), height: 14, fill: c, opacity: 0.85 }, g));
+    [0, 0.5, 1, 1.33, 1.67, 2, 2.5].forEach((t) => {
+      txt(g, X(t), 57, String(t), { "text-anchor": "middle", "font-size": 14, fill: "var(--muted)" });
+    });
+    const cpx = X(s.cp);
+    el("circle", { cx: cpx, cy: 29, r: 7, fill: "var(--panel)", stroke: "var(--ink)", "stroke-width": 2 }, g);
+    txt(g, cpx, 13, "Cp", { "text-anchor": "middle", "font-size": 14, fill: "var(--muted)" });
+    const kx = X(s.cpk);
+    el("path", { d: `M ${kx - 7} 6 L ${kx + 7} 6 L ${kx} 20 Z`, fill: "var(--ink)" }, g);
+    el("line", { x1: kx, x2: kx, y1: 18, y2: 40, stroke: "var(--ink)", "stroke-width": 3 }, g);
+    if (s.cpk < 0) txt(g, L + 4, 70, "Cpk is below 0 (off the scale)", { "font-size": 14, fill: "var(--out)" });
+    if (s.cpk > max) txt(g, R, 70, "Cpk above 2.5 (off the scale)", { "text-anchor": "end", "font-size": 14, fill: "var(--muted)" });
+  }
+
+  function render() {
+    const { lsl, usl, mu, sd } = state;
+    if (!(usl > lsl)) { $("err").textContent = "USL must be greater than LSL."; return; }
+    if (!(sd > 0)) { $("err").textContent = "Standard deviation must be greater than 0."; return; }
+    $("err").textContent = "";
+
+    const cp = (usl - lsl) / (6 * sd), cpu = (usl - mu) / (3 * sd), cpl = (mu - lsl) / (3 * sd), cpk = Math.min(cpu, cpl);
+    const pAbove = upperTail((usl - mu) / sd), pBelow = upperTail((mu - lsl) / sd);
+    const pOut = Math.min(1, pAbove + pBelow), pIn = 1 - pOut;
+    const s = { cp, cpk, cpu, cpl, pAbove, pBelow, pOut, pIn };
+
+    $("cpkV").textContent = fmt(cpk, 2);
+    $("cpkS").textContent = "CPU " + fmt(cpu, 2) + ", CPL " + fmt(cpl, 2);
+    $("cpV").textContent = fmt(cp, 2);
+    $("cpS").textContent = "6σ = " + smart(6 * sd) + " vs spec width " + smart(usl - lsl);
+    $("inV").textContent = (pIn * 100 >= 99.99 ? (pIn * 100).toFixed(4) : (pIn * 100).toFixed(2)) + "%";
+    $("inS").textContent = "below LSL " + (pBelow * 100).toFixed(pBelow < 0.001 ? 4 : 2) + "%, above USL " + (pAbove * 100).toFixed(pAbove < 0.001 ? 4 : 2) + "%";
+    const ppm = pOut * 1e6;
+    $("ppmV").textContent = ppm >= 100 ? Math.round(ppm).toLocaleString() : ppm >= 1 ? ppm.toFixed(1) : ppm >= 0.01 ? ppm.toFixed(2) : "< 0.01";
+    $("ppmS").textContent = "about 1 bad part in " + (pOut > 0 ? Math.round(1 / pOut).toLocaleString() : "∞");
+    $("cpkV").style.color = band(cpk).color;
+
+    const b = band(cpk);
+    $("verdictTag").textContent = b.name;
+    $("verdictTag").style.color = b.color;
+    $("verdictSub").textContent = "Cpk = " + fmt(cpk, 2);
+
+    const nearU = cpu <= cpl, near = nearU ? "USL" : "LSL", far = nearU ? "LSL" : "USL";
+    const zNear = 3 * cpk, mid = (usl + lsl) / 2, off = mu - mid;
+    const parts = [];
+    if (zNear >= 0) {
+      parts.push(`The mean is ${fmt(zNear, 2)} standard deviations from the nearer limit (${near}), so Cpk = ${fmt(zNear, 2)} / 3 = ${fmt(cpk, 2)}. ` +
+        (cpk >= 1 ? `That side's 3σ edge (${smart(nearU ? mu + 3 * sd : mu - 3 * sd)}) is inside the ${near}, so the blue ±3σ bar fits inside the green spec bar on that side.`
+                  : `That side's 3σ edge (${smart(nearU ? mu + 3 * sd : mu - 3 * sd)}) is past the ${near}, so part of the process falls outside specs there.`));
+    } else {
+      parts.push(`The mean itself is outside the ${near}, so Cpk is negative and most parts are out of spec.`);
+    }
+    if (Math.abs(cp - cpk) < 0.005) {
+      parts.push(`The process is centered in the spec range, so Cp and Cpk are equal. ` +
+        (cp >= 1 ? `The ±3σ spread (${smart(6 * sd)} wide) fits within the ${smart(usl - lsl)}-wide spec range.` : `But the ±3σ spread (${smart(6 * sd)} wide) is wider than the ${smart(usl - lsl)}-wide spec range, so even perfect centering can't fix it. Only reducing variation will.`));
+    } else {
+      parts.push(`Cp (${fmt(cp, 2)}) is higher than Cpk (${fmt(cpk, 2)}) because the mean sits ${smart(Math.abs(off))} ${off > 0 ? "above" : "below"} the center of the specs (${smart(mid)}), toward the ${near}. ` +
+        (cp >= 1 ? `Moving the mean back to ${smart(mid)} would raise Cpk to ${fmt(cp, 2)}.` : `Centering would help, but Cp is below 1, so the spread is too wide to fit even if centered.`));
+    }
+    if (Math.abs(cp - 1) < 0.005 && Math.abs(cpk - 1) < 0.005) {
+      parts.push(`This is the classic case: specs sit exactly at ±3σ, so 99.73% of parts are in spec and 0.27% (about 2,700 per million) are out, split evenly between the two tails.`);
+    }
+    $("story").innerHTML = parts.map((p) => "<p>" + p + "</p>").join("");
+
+    drawChart(s);
+    drawGauge(s);
+  }
+
+  function setMuSd(mu, sd) { state.mu = mu; state.sd = sd; syncRanges(); render(); }
+
+  $("muR").addEventListener("input", (e) => { state.mu = +e.target.value; $("muN").value = +state.mu.toFixed(4); render(); });
+  $("sdR").addEventListener("input", (e) => { state.sd = +e.target.value; $("sdN").value = +state.sd.toFixed(4); render(); });
+  $("muN").addEventListener("input", (e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.mu = v; $("muR").value = v; render(); } });
+  $("sdN").addEventListener("input", (e) => { const v = parseFloat(e.target.value); if (Number.isFinite(v)) { state.sd = v; $("sdR").value = v; render(); } });
+  ["lsl", "usl"].forEach((id) => {
+    $(id).addEventListener("change", (e) => {
+      const v = parseFloat(e.target.value);
+      if (!Number.isFinite(v)) return;
+      state[id] = v;
+      if (state.usl > state.lsl) syncRanges();
+      render();
+    });
+  });
+
+  document.querySelectorAll("[data-p]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const { lsl, usl } = state, w = usl - lsl, mid = (lsl + usl) / 2;
+      switch (btn.dataset.p) {
+        case "c1": setMuSd(mid, w / 6); break;
+        case "shift": { const sd = w / 9; setMuSd(usl - 3 * sd, sd); break; }
+        case "cp2": { const sd = w / 12; setMuSd(usl - 3 * sd, sd); break; }
+        case "marg": { const sd = w / 7.2; setMuSd(usl - 3 * 1.09 * sd, sd); break; }
+        case "cap": setMuSd(mid, w / 8); break;
+        case "high": setMuSd(mid, w / 10); break;
+        case "wide": setMuSd(mid, w / 4.8); break;
+        case "off": { const sd = w / 10; setMuSd(usl + sd, sd); break; }
+      }
+    });
+  });
+  $("resample").addEventListener("click", resample);
+
+  function buildMeaning() {
+    const rows = [[0.67, 2], [1.00, 3], [1.33, 4], [1.50, 4.5], [1.67, 5], [2.00, 6]];
+    const fmtCount = (n) => n >= 100 ? Math.round(n).toLocaleString() : n >= 1 ? n.toFixed(1) : n >= 0.01 ? n.toFixed(2) : n >= 0.001 ? n.toFixed(3) : "≈ 0";
+    const fmtOne = (n) => n >= 1e9 ? (n / 1e9).toFixed(1) + " billion" : n >= 1e6 ? (n / 1e6).toFixed(1) + " million" : Math.round(n).toLocaleString();
+    $("meaningTable").querySelector("tbody").innerHTML = rows.map(([c, z]) => {
+      const p = upperTail(z);
+      return `<tr><td><strong>${c.toFixed(2)}</strong></td><td>${z}σ</td><td>${fmtCount(p * 1e6)}</td><td>${fmtOne(1 / p)}</td><td>${fmtCount(p * 50000)}</td><td>${fmtCount(p * 1e7)}</td></tr>`;
+    }).join("");
+  }
+  buildMeaning();
+  syncRanges();
+  resample();
+})();
+</script>
+</body>
+</html>
