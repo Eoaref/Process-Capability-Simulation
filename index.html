@@ -125,6 +125,9 @@ button.primary { background: var(--process); color: #fff; border-color: var(--pr
 
 .explain { margin-top: 20px; }
 .explain .cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.gauge-legend { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: 14px; color: var(--muted); margin-top: 4px; }
+.gauge-legend span { display: inline-flex; align-items: center; gap: 8px; }
+.gauge-legend svg { width: auto; flex: none; }
 .interp { margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--rule); }
 @media (max-width: 900px) { .explain .cols { grid-template-columns: 1fr; } }
 .explain h3 { font-size: 18px; font-weight: 600; margin: 0 0 6px; }
@@ -184,6 +187,10 @@ footer a { color: var(--band); }
       <div class="panel verdict-panel">
         <div class="verdict"><span class="tag" id="verdictTag">–</span><span id="verdictSub" style="color:var(--muted)"></span></div>
         <div class="scroll" style="margin-top:10px"><svg id="gauge" class="wide-g" viewBox="0 0 820 76" role="img" aria-label="Cpk scale"></svg></div>
+        <div class="gauge-legend">
+          <span><svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="var(--panel)" stroke="var(--ink)" stroke-width="2"/></svg>Cp</span>
+          <span><svg width="16" height="22" viewBox="0 0 16 22" aria-hidden="true"><path d="M1 1 L15 1 L8 12 Z" fill="var(--ink)"/><line x1="8" y1="10" x2="8" y2="21" stroke="var(--ink)" stroke-width="3"/></svg>Cpk</span>
+        </div>
         <div class="story" id="story"></div>
       </div>
     </div>
@@ -325,13 +332,18 @@ footer a { color: var(--band); }
 
     <h3 style="margin-top:22px">References</h3>
     <ol class="refs">
-      <li>Montgomery, D. C. (2012). <em>Introduction to statistical quality control</em> (7th ed.). Wiley. .</li>
+      <li>Montgomery, D. C. (2012). <em>Introduction to statistical quality control</em> (7th ed.). Wiley. Table of recommended minimum values of the process capability ratio: 1.33 existing processes, 1.50 new processes and safety or critical parameters on existing processes, 1.67 safety or critical parameters on new processes, 2.00 Six Sigma (two-sided specifications).</li>
     </ol>
   </section>
 
   <footer>
     This tool was created by <a href="mailto:earef@bgsu.edu">Enas Aref</a> as an aid to help
-    students understand process capability. This interactive example
+    students understand process capability. Students can adjust the specification limits (LSL and USL),
+    the process mean, and the process standard deviation, and immediately see how the process's ±3σ spread
+    compares with the spec limits, how Cp and Cpk change, and what percentage of parts is expected to fall
+    within specification. A batch of 500 simulated parts shows the same result as individual good and
+    defective parts, and preset scenarios illustrate centered, shifted, marginal, capable, and incapable
+    processes. Percentages assume a normally distributed, stable process. This interactive example
     was planned and structured by the instructor; the code was created by Claude (Anthropic) and deployed by
     the instructor. It is for educational purposes only.<br><br>
     Comments, questions, or spotted errors: <a href="mailto:earef@bgsu.edu">earef@bgsu.edu</a><br><br>
